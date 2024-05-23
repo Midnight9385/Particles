@@ -10,7 +10,7 @@ import threading
 WIDTH = 400.0
 HEIGHT = 400.0
 RADIUS = 1.0
-AMOUNT = 50.0
+AMOUNT = 15
 HORIZ_SAMPLE_SIZE = WIDTH/AMOUNT
 VERT_SAMPLE_SIZE = WIDTH/AMOUNT
 
@@ -21,12 +21,15 @@ MAX_V = 3.0
 
 FACTOR = 2
 
-NUM_PARTICLES = 500
+NUM_PARTICLES = 1000
 
 empty = []
+emptyV = []
+
 
 for i in range(0, int(AMOUNT*AMOUNT)):
     empty.append(0)
+    # emptyV.append((0,0))
 
 # print(len(empty))
 
@@ -66,19 +69,26 @@ class Particle:
         if(self.x+RADIUS>=WIDTH or self.x-RADIUS<=0.0):
             self.dx *= -1
 
+        # if(self.x+RADIUS>WIDTH):
+        #     self.x = 0.1 + RADIUS
+        # elif(self.x-RADIUS<0.0):
+        #     self.x = WIDTH - RADIUS - 0.1
+
         if(self.y+RADIUS>=HEIGHT or self.y-RADIUS<=0.0):
             self.dy *= -1
 
 class ParticalUpdater(threading.Thread):
-    def __init__(self, particles, name='particle-thread'):
+    def __init__(self, particles, startI=0, endI=0, name='particle-thread'):
         self.particles = particles
+        self.startI = startI
+        self.endI = endI if endI > 0 else len(particles)
         super(ParticalUpdater, self).__init__(name=name)
         self.start()
 
     def run(self):
         while True:
-            print("particle update")
-            for i in range(0, len(particles)):
+            # print("particle update")
+            for i in range(self.startI, self.endI):
                 p = particles[i]
 
                 for n in range(0, len(particles)):
@@ -126,79 +136,124 @@ particles = [
 
 for i in range(1, NUM_PARTICLES):
     particles.append(
-        Particle(x=r.random()*WIDTH, y=r.random()*HEIGHT, dx=r.random()*MAX_V, dy=r.random()*MAX_V)
+        Particle(x=r.random()*WIDTH, y=r.random()*HEIGHT, dx=r.random()*MAX_V*(-1 if r.random() > 0.5 else 1), dy=r.random()*MAX_V*(-1 if r.random() > 0.5 else 1))
     )
 
-thread = ParticalUpdater(particles=particles)
+threads = (
+    ParticalUpdater(particles=particles)
+)
 
+norms = []
+velocities = []
 
 while True:
-    window = cv2.getWindowImageRect("fluid")
-    # print(window)
-    if window[2] != WIDTH or window[3] != HEIGHT:
-        WIDTH = window[2]
-        HEIGHT = WIDTH
-        # cv2.resizeWindow("fluid", WIDTH, WIDTH)
+    try:
+        window = cv2.getWindowImageRect("fluid")
+        # print(window)
+        if window[2] != WIDTH or window[3] != HEIGHT:
+            WIDTH = window[2]
+            HEIGHT = WIDTH
+            # cv2.resizeWindow("fluid", WIDTH, WIDTH)
 
-        HORIZ_SAMPLE_SIZE = WIDTH/AMOUNT
-        VERT_SAMPLE_SIZE = HEIGHT/AMOUNT
+            HORIZ_SAMPLE_SIZE = WIDTH/AMOUNT
+            VERT_SAMPLE_SIZE = HEIGHT/AMOUNT
 
-        # print(f'width {WIDTH} height {HEIGHT}')
-        cv2.resizeWindow("fluid", WIDTH, HEIGHT)
-        # print((cv2.getWindowImageRect("fluid")[2], cv2.getWindowImageRect("fluid")[3]))
+            # print(f'width {WIDTH} height {HEIGHT}')
+            cv2.resizeWindow("fluid", WIDTH, HEIGHT)
+            # print((cv2.getWindowImageRect("fluid")[2], cv2.getWindowImageRect("fluid")[3]))
 
-        empty = []
+            empty = []
 
-        for i in range(0, int(AMOUNT*AMOUNT)):
-            empty.append(0)
-    #create an empty image that represents a 5m by 5m box
-    img = np.zeros((int(WIDTH), int(HEIGHT)), dtype=np.uint8)
-    img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+            for i in range(0, int(AMOUNT*AMOUNT)):
+                empty.append(0)
+        #create an empty image that represents a 5m by 5m box
+        img = np.zeros((int(WIDTH), int(HEIGHT)), dtype=np.uint8)
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
-    count = empty.copy()
+        count = empty.copy()
+        # velocities = emptyV.copy()
 
-    for i in range(0, len(particles)):
-        p = particles[i]
-        box = min((len(count)-1, int(p.x//HORIZ_SAMPLE_SIZE) + int(AMOUNT*(min((AMOUNT-1, max((0,(p.y//VERT_SAMPLE_SIZE)))))))))
-        count[box] += 1
+        for i in range(0, len(particles)):
+            p = particles[i]
+            box = min((len(count)-1, int(p.x//HORIZ_SAMPLE_SIZE) + int(AMOUNT*(min((AMOUNT-1, max((0,(p.y//VERT_SAMPLE_SIZE)))))))))
+            count[box] += 1
+            # velocities[box] = (p.dx, p.dy)
 
-    norm = max(count)
+            # for n in range(0, len(particles)):
+            #     if(n!=i):
+            #         p2 = particles[n]
+            #         if(MathUtil.calcDist(p.x, p.y, p2.x, p2.y) <= RADIUS*2.0):
+                        
+            #             dx1, dy1, dx2, dy2 = MathUtil.calcCollisionVelocity(p.mass, p.dx, p.dy, p2.mass, p2.dx, p2.dy)
+            #             p.dx = dx1
+            #             p.dy = dy1
+            #             p2.dx = dx2
+            #             p2.dy = dy2
+            # p.update()
 
-    for i in range(0, len(count)):
-        count[i] /= norm
-        count[i] *= 100.0
-        # print(count[i])
+        norms.append(max(count))
 
-    for i in range(0, len(count)):
-        nums = (
-            tryValue(count, i-1-int(AMOUNT)), tryValue(count, i-int(AMOUNT)), tryValue(count, i+1-int(AMOUNT)),
-            tryValue(count, i-1), tryValue(count, i), tryValue(count, i+1),
-            tryValue(count, i-1+int(AMOUNT)),tryValue(count, i+int(AMOUNT)), tryValue(count, i+1+int(AMOUNT))
-        )
+        if(len(norms) > 5):
+            norms.pop(0)
 
-        # print(nums)
+        norm = sum(norms)/len(norms)
 
-        total = 0.0
-        sum = 0.0
+        for i in range(0, len(count)):
+            # if not count[i] == 0:
+            #     # print(i)
+            #     velocities[i] = (velocities[i][0]/count[i], velocities[i][1]/count[i])
+            count[i] /= norm
+            count[i] *= 100.0
+            # print(count[i])
 
-        for num in nums:
-            if num != -1:
-                sum += num
-                total += 1.0
+        for i in range(0, len(count)):
+            if(i % AMOUNT == AMOUNT-1):
+                nums = (
+                    tryValue(count, i-1-int(AMOUNT)), tryValue(count, i-int(AMOUNT)),
+                    tryValue(count, i-1), tryValue(count, i),
+                    tryValue(count, i-1+int(AMOUNT)),tryValue(count, i+int(AMOUNT))
+                )
+            elif(i%AMOUNT == 0):
+                nums = (
+                    tryValue(count, i+1-int(AMOUNT)), tryValue(count, i-int(AMOUNT)),
+                    tryValue(count, i+1), tryValue(count, i),
+                    tryValue(count, i+1+int(AMOUNT)), tryValue(count, i+int(AMOUNT))
+                )
+            else:
+                nums = (
+                    tryValue(count, i-1-int(AMOUNT)), tryValue(count, i-int(AMOUNT)), tryValue(count, i+1-int(AMOUNT)),
+                    tryValue(count, i-1), tryValue(count, i), tryValue(count, i+1),
+                    tryValue(count, i-1+int(AMOUNT)),tryValue(count, i+int(AMOUNT)), tryValue(count, i+1+int(AMOUNT))
+                )
 
-        value = sum/total
-        # print(value)
-        color = colorSpace[int(value)]
-        p1 = (int((i%AMOUNT)*HORIZ_SAMPLE_SIZE), int((i//AMOUNT)*VERT_SAMPLE_SIZE))
-        p2 = (int(((i%AMOUNT)+1)*HORIZ_SAMPLE_SIZE), int(((i//AMOUNT)+1)*VERT_SAMPLE_SIZE))
+            # print(nums)
 
-        cv2.rectangle(img, p1, p2, (color[2]*255, color[1]*255, color[0]*255), -1) # BGR
-    
+            total = 0.0
+            totalS = 0.0
 
-    cv2.imshow("fluid", img)
+            for num in nums:
+                if num != -1:
+                    totalS += num
+                    total += 1.0
 
-    key = cv2.waitKey(1)
-    if(key == ord('q')):
-        break
+            value = totalS/total
+            # print(value)
+            color = colorSpace[int(value)]
+            p1 = (int((i%AMOUNT)*HORIZ_SAMPLE_SIZE), int((i//AMOUNT)*VERT_SAMPLE_SIZE))
+            p2 = (int(((i%AMOUNT)+1)*HORIZ_SAMPLE_SIZE), int(((i//AMOUNT)+1)*VERT_SAMPLE_SIZE))
+            # p3 = (int((p1[0]+p2[0])/2.0+velocities[i][0]*1.0), int((p1[1]+p2[1])/2.0+velocities[i][1]*1.0))
+
+            cv2.rectangle(img, p1, p2, (color[2]*255, color[1]*255, color[0]*255), -1) # BGR
+            # if velocities[i][0]+velocities[i][1] > 0.25:
+                # cv2.arrowedLine(img, (int((p1[0]+p2[0])/2.0), int((p1[1]+p2[1])/2.0)), p3, (255, 255, 255), 1)
+        
+
+        cv2.imshow("fluid", img)
+
+        key = cv2.waitKey(1)
+        if(key == ord('q')):
+            break
+    except:
+        print("error")
 
 cv2.destroyAllWindows()
