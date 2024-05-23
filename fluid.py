@@ -10,7 +10,7 @@ import threading
 WIDTH = 400.0
 HEIGHT = 400.0
 RADIUS = 1.0
-AMOUNT = 100.0
+AMOUNT = 50.0
 HORIZ_SAMPLE_SIZE = WIDTH/AMOUNT
 VERT_SAMPLE_SIZE = WIDTH/AMOUNT
 
@@ -36,16 +36,16 @@ for i, color in enumerate(colorMap(np.linspace(0, 1, int(math.pow(10, FACTOR))))
     colorSpace.append(color)
 
 testIdx = -1
-print((colorSpace[testIdx][0]*255, colorSpace[testIdx][1]*255, colorSpace[testIdx][2]*255))
-plt.figure(facecolor= colorSpace[testIdx])
-plt.scatter(
-    x = (0, 2),
-    y = (0, 2) ,
-    c = (0, 1),
-    cmap='plasma'
-)
-plt.colorbar()
-plt.show()
+# print((colorSpace[testIdx][0]*255, colorSpace[testIdx][1]*255, colorSpace[testIdx][2]*255))
+# plt.figure(facecolor= colorSpace[testIdx])
+# plt.scatter(
+#     x = (0, 2),
+#     y = (0, 2) ,
+#     c = (0, 1),
+#     cmap='plasma'
+# )
+# plt.colorbar()
+# plt.show()
 
 
 class Particle:
@@ -70,43 +70,28 @@ class Particle:
             self.dy *= -1
 
 class ParticalUpdater(threading.Thread):
-    def __init__(self, particles, count, name='particle-thread'):
+    def __init__(self, particles, name='particle-thread'):
         self.particles = particles
-        self.count = count
-        self.atIndex = 0
-        self.norm = 0
-        self.ready = False
-        self.go = True
         super(ParticalUpdater, self).__init__(name=name)
         self.start()
 
     def run(self):
         while True:
-            if not self.go:
-                print("waiting to go")
-            else:
-                self.ready = False
-                self.count = empty.copy()
-                for i in range(0, len(particles)):
-                    p = particles[i]
-                    # cv2.circle(img, (int(p.x), int(p.y)), int(RADIUS), (255, 255, 255), -1)
-                    # print(f'x box {p.x//HORIZ_SAMPLE_SIZE} y box {AMOUNT*(max((0,(p.y//VERT_SAMPLE_SIZE)-1)))}')
-                    box = min((len(self.count)-1, int(p.x//HORIZ_SAMPLE_SIZE) + int(AMOUNT*(min((AMOUNT-1, max((0,(p.y//VERT_SAMPLE_SIZE)))))))))
-                    # print(f'box: {box} len: {len(self.count)}')
-                    self.count[box] += 1
+            print("particle update")
+            for i in range(0, len(particles)):
+                p = particles[i]
 
-                    for n in range(0, len(particles)):
-                        if(n!=i):
-                            p2 = particles[n]
-                            if(MathUtil.calcDist(p.x, p.y, p2.x, p2.y) <= RADIUS*2.0):
-                                
-                                dx1, dy1, dx2, dy2 = MathUtil.calcCollisionVelocity(p.mass, p.dx, p.dy, p2.mass, p2.dx, p2.dy)
-                                p.dx = dx1
-                                p.dy = dy1
-                                p2.dx = dx2
-                                p2.dy = dy2
-                self.ready = True
-                self.go = False
+                for n in range(0, len(particles)):
+                    if(n!=i):
+                        p2 = particles[n]
+                        if(MathUtil.calcDist(p.x, p.y, p2.x, p2.y) <= RADIUS*2.0):
+                            
+                            dx1, dy1, dx2, dy2 = MathUtil.calcCollisionVelocity(p.mass, p.dx, p.dy, p2.mass, p2.dx, p2.dy)
+                            p.dx = dx1
+                            p.dy = dy1
+                            p2.dx = dx2
+                            p2.dy = dy2
+                p.update()
 
 class MathUtil:
     @staticmethod
@@ -139,12 +124,12 @@ particles = [
     )
 ]
 
-for i in range(0, NUM_PARTICLES-1):
+for i in range(1, NUM_PARTICLES):
     particles.append(
         Particle(x=r.random()*WIDTH, y=r.random()*HEIGHT, dx=r.random()*MAX_V, dy=r.random()*MAX_V)
     )
 
-thread = ParticalUpdater(particles=particles, count=empty.copy())
+thread = ParticalUpdater(particles=particles)
 
 
 while True:
@@ -170,39 +155,50 @@ while True:
     img = np.zeros((int(WIDTH), int(HEIGHT)), dtype=np.uint8)
     img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
-    if not thread.ready:
-        print("waiting")
-    else:
-        count = thread.count.copy()
-        thread.go = True
+    count = empty.copy()
 
-        for i in range(0, len(count)):
-            nums = (
-                tryValue(count, i-1-int(AMOUNT)), tryValue(count, i-int(AMOUNT)), tryValue(count, i+1-int(AMOUNT)),
-                tryValue(count, i-1), tryValue(count, i), tryValue(count, i+1),
-                tryValue(count, i-1+int(AMOUNT)),tryValue(count, i+int(AMOUNT)), tryValue(count, i+1+int(AMOUNT))
-            )
+    for i in range(0, len(particles)):
+        p = particles[i]
+        box = min((len(count)-1, int(p.x//HORIZ_SAMPLE_SIZE) + int(AMOUNT*(min((AMOUNT-1, max((0,(p.y//VERT_SAMPLE_SIZE)))))))))
+        count[box] += 1
 
-            total = 0.0
-            sum = 0.0
+    norm = max(count)
 
-            for num in nums:
-                if num != -1:
-                    sum += num
-                    total += 1.0
+    for i in range(0, len(count)):
+        count[i] /= norm
+        count[i] *= 100.0
+        # print(count[i])
 
-            value = sum/total
-            color = colorSpace[int(value)]
-            p1 = (int((i%AMOUNT)*HORIZ_SAMPLE_SIZE), int((i//AMOUNT)*VERT_SAMPLE_SIZE))
-            p2 = (int(((i%AMOUNT)+1)*HORIZ_SAMPLE_SIZE), int(((i//AMOUNT)+1)*VERT_SAMPLE_SIZE))
+    for i in range(0, len(count)):
+        nums = (
+            tryValue(count, i-1-int(AMOUNT)), tryValue(count, i-int(AMOUNT)), tryValue(count, i+1-int(AMOUNT)),
+            tryValue(count, i-1), tryValue(count, i), tryValue(count, i+1),
+            tryValue(count, i-1+int(AMOUNT)),tryValue(count, i+int(AMOUNT)), tryValue(count, i+1+int(AMOUNT))
+        )
 
-            cv2.rectangle(img, p1, p2, (color[2]*255, color[1]*255, color[0]*255), -1) # BGR
-        
+        # print(nums)
 
-        cv2.imshow("fluid", img)
+        total = 0.0
+        sum = 0.0
 
-        key = cv2.waitKey(1)
-        if(key == ord('q')):
-            break
+        for num in nums:
+            if num != -1:
+                sum += num
+                total += 1.0
+
+        value = sum/total
+        # print(value)
+        color = colorSpace[int(value)]
+        p1 = (int((i%AMOUNT)*HORIZ_SAMPLE_SIZE), int((i//AMOUNT)*VERT_SAMPLE_SIZE))
+        p2 = (int(((i%AMOUNT)+1)*HORIZ_SAMPLE_SIZE), int(((i//AMOUNT)+1)*VERT_SAMPLE_SIZE))
+
+        cv2.rectangle(img, p1, p2, (color[2]*255, color[1]*255, color[0]*255), -1) # BGR
+    
+
+    cv2.imshow("fluid", img)
+
+    key = cv2.waitKey(1)
+    if(key == ord('q')):
+        break
 
 cv2.destroyAllWindows()
