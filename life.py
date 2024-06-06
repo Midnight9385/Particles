@@ -13,6 +13,7 @@ class Color(Enum):
     GREEN = (0, 255, 0)
     BLUE = (255, 0, 0)
     PURPLE = (255, 0, 255)
+    YELLOW = (3, 236, 252)
 
 
 WIDTH = 600.0
@@ -24,7 +25,7 @@ VERT_SAMPLE_SIZE = WIDTH/AMOUNT
 MAX_FORCE_DIST = RADIUS * 10.0
 
 MAX_V = 3.0
-FRICTION = 0.10
+FRICTION = 0.05
 
 ForceMatrix = {}
 
