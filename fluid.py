@@ -248,7 +248,7 @@ while True:
                 # cv2.arrowedLine(img, (int((p1[0]+p2[0])/2.0), int((p1[1]+p2[1])/2.0)), p3, (255, 255, 255), 1)
         
 
-    cv2.imshow("fluid", img)
+        cv2.imshow("fluid", img)
 
         key = cv2.waitKey(1)
         if(key == ord('q')):
